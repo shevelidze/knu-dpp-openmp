@@ -49,79 +49,84 @@ void generateCodes(HuffmanTreeNode* root, std::string str,
   generateCodes(root->right, str + "1", huffmanCode);
 }
 
-int main() {
-  std::ifstream input_file;
+int main(int argc, char* argv[]) {
+    std::ifstream input_file;
 
-  input_file.open("input.txt", std::ios::ate);
-
-  const auto input_file_size = input_file.tellg();
-  input_file.seekg(0, std::ios::beg);
-
-  std::vector<char> buffer(input_file_size);
-  input_file.read(buffer.data(), input_file_size);
-
-  std::unordered_map<char, int> frequencies;
-
-  // Calculating the frequency of each character
-  #pragma omp parallel for shared(frequencies)
-  for (const auto& c : buffer) {
-    frequencies[c]++;
-  }
-
-  std::priority_queue<HuffmanTreeNode*, std::vector<HuffmanTreeNode*>, compare> queue;
-
-  for (auto pair : frequencies) {
-      queue.push(new HuffmanTreeNode(pair.first, pair.second));
-  }
-
-  while (queue.size() > 1) {
-      HuffmanTreeNode* left = queue.top();
-      queue.pop();
-      HuffmanTreeNode* right = queue.top();
-      queue.pop();
-
-      int sum = left->freq + right->freq;
-      queue.push(new HuffmanTreeNode('\0', sum, left, right));
-  }
-
-  HuffmanTreeNode* root_node = queue.top();
-
-  // Generating the codes for the characters
-  std::unordered_map<char, std::string> codes;
-  generateCodes(root_node, "", codes);
-
-  // Encoding the input data
-  std::string encoded_data;
-
-  for (const auto& c : buffer) {
-    encoded_data += codes[c];
-  }
-
-  std::vector<char> encoded_data_buffer(encoded_data.length() + 1);
-
-  encoded_data_buffer.push_back(encoded_data.length());
-
-  #pragma omp parallel for shared(encoded_data_buffer)
-  for (int i = 0; i < encoded_data.size(); i += 8) {
-    std::string byte_string = encoded_data.substr(i, 8);
-
-    if (byte_string.length() < 8) {
-      byte_string.append(8 - byte_string.length(), '0');
+    if (argc < 2) {
+            std::cerr << "Usage: " << argv[0] << " <input_file>" << std::endl;
+            return 1;
+    }
+    input_file.open(argv[1], std::ios::ate);
+    if (!input_file.is_open()) {
+            std::cerr << "Error: Could not open file " << argv[1] << std::endl;
+            return 1;
     }
 
-    char byte = static_cast<char>(std::stoi(byte_string, nullptr, 2));
-    encoded_data_buffer[i + 1] = byte;
-  }
+    const auto input_file_size = input_file.tellg();
+    input_file.seekg(0, std::ios::beg);
 
-  // Writing the encoded data to a file
-  std::ofstream output_file("output.bin", std::ios::binary);
-  output_file.write(encoded_data_buffer.data(), encoded_data_buffer.size());
-  output_file.close();
+    std::vector<char> buffer(input_file_size);
+    input_file.read(buffer.data(), input_file_size);
 
-  // Writing the codes to a file
-  std::ofstream codes_file("codes.txt");
-  for (const auto& pair : codes) {
-    codes_file << pair.first << " " << pair.second << "\n";
-  }
-  codes_file.close();
+    std::unordered_map<char, int> frequencies;
+
+    // Calculating the frequency of each character
+    #pragma omp parallel for shared(frequencies)
+    for (const auto& c : buffer) {
+        frequencies[c]++;
+    }
+
+    std::priority_queue<HuffmanTreeNode*, std::vector<HuffmanTreeNode*>, compare> queue;
+
+    for (auto pair : frequencies) {
+            queue.push(new HuffmanTreeNode(pair.first, pair.second));
+    }
+
+    while (queue.size() > 1) {
+            HuffmanTreeNode* left = queue.top();
+            queue.pop();
+            HuffmanTreeNode* right = queue.top();
+            queue.pop();
+
+            int sum = left->freq + right->freq;
+            queue.push(new HuffmanTreeNode('\0', sum, left, right));
+    }
+
+    HuffmanTreeNode* root_node = queue.top();
+
+    // Generating the codes for the characters
+    std::unordered_map<char, std::string> codes;
+    generateCodes(root_node, "", codes);
+
+    // Encoding the input data
+    std::string encoded_data;
+
+    for (const auto& c : buffer) {
+        encoded_data += codes[c];
+    }
+
+    std::vector<char> encoded_data_buffer;
+
+    encoded_data_buffer.push_back(encoded_data.length());
+
+    for (size_t i = 0; i < encoded_data.size(); i += 8) {
+        std::string byte_string = encoded_data.substr(i, 8);
+        if (byte_string.size() < 8)
+          byte_string.append(8 - byte_string.size(), '0');
+        char byte = static_cast<char>(std::stoi(byte_string, nullptr, 2));
+        encoded_data_buffer.push_back(byte);
+      }
+
+
+    // Writing the encoded data to a file
+    std::ofstream output_file("output.bin", std::ios::binary);
+    output_file.write(encoded_data_buffer.data(), encoded_data_buffer.size());
+    output_file.close();
+
+    // Writing the codes to a file
+    std::ofstream codes_file("codes.txt");
+    for (const auto& pair : codes) {
+        codes_file << pair.first << " " << pair.second << "\n";
+    }
+    codes_file.close();
 }
